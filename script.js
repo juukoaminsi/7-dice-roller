@@ -1,129 +1,120 @@
-document.addEventListener('DOMContentLoaded', () => {
-    const rollButton = document.getElementById('rollButton');
-    const playAgainButton = document.getElementById('playAgainButton');
-    const result = document.getElementById('result');
-    const pointsDisplay = document.getElementById('points');
-    const diceContainer = document.getElementById('diceContainer');
-    const scoreTable = document.getElementById('scoreTable').getElementsByTagName('tbody')[0];
-    let playerPoints = 5000;
+class DiceGame {
+    constructor() {
+        this.points = 5000;
+        this.gameCost = 500;
+        this.roundsPlayed = 0;
+        this.dices = [];
+        this.selectedDices = [];
+        
+        this.initializeElements();
+        this.setupEventListeners();
+    }
 
-    rollButton.addEventListener('click', () => {
-        if (playerPoints < 20) {
-            result.textContent = "Game over. You do not have enough points to roll again.";
+    initializeElements() {
+        this.pointsDisplay = document.getElementById('points');
+        this.roundsDisplay = document.getElementById('roundsPlayed');
+        this.diceContainer = document.getElementById('diceContainer');
+        this.resultDisplay = document.getElementById('result');
+        this.rollButton = document.getElementById('rollButton');
+        this.selectButton = document.getElementById('selectButton');
+        this.rerollButton = document.getElementById('rerollButton');
+        this.playAgainButton = document.getElementById('playAgainButton');
+        
+        this.frequencyTds = Array.from({length: 8}, (_, i) => 
+            document.getElementById(`freq${i}`));
+    }
+
+    setupEventListeners() {
+        this.rollButton.addEventListener('click', () => this.rollDices());
+        this.selectButton.addEventListener('click', () => this.selectDices());
+        this.rerollButton.addEventListener('click', () => this.rerollUnselectedDices());
+        this.playAgainButton.addEventListener('click', () => this.resetGame());
+    }
+
+    rollDices() {
+        if (this.points < this.gameCost) {
+            alert('Not enough points to play!');
             return;
         }
 
-        playerPoints -= 20;
-        pointsDisplay.textContent = playerPoints;
+        this.points -= this.gameCost;
+        this.pointsDisplay.textContent = this.points;
+        this.roundsPlayed++;
+        this.roundsDisplay.textContent = this.roundsPlayed;
 
-        rollDice();
-    });
-
-    playAgainButton.addEventListener('click', () => {
-        resetGame();
-    });
-
-    function resetGame() {
-        playerPoints = 5000;
-        pointsDisplay.textContent = playerPoints;
-        result.textContent = "";
-        rollButton.style.display = 'inline-block';
-        playAgainButton.style.display = 'none';
-        clearDice();
-        resetScoreTable();
+        this.dices = Array.from({length: 7}, () => Math.floor(Math.random() * 6) + 1);
+        this.renderDices();
+        this.rollButton.style.display = 'none';
+        this.selectButton.style.display = 'block';
+        this.resultDisplay.textContent = '';
     }
 
-    function clearDice() {
-        diceContainer.innerHTML = '';
-    }
-
-    function resetScoreTable() {
-        const rows = scoreTable.rows;
-        for (let i = 0; i < rows.length; i++) {
-            rows[i].cells[1].textContent = 0;
-        }
-    }
-
-    function rollDice() {
-        clearDice();
-
-        const diceResults = [];
-
-        for (let i = 0; i < 7; i++) {
-            const diceValue = rollDie();
-            diceResults.push(diceValue);
+    renderDices() {
+        this.diceContainer.innerHTML = '';
+        this.dices.forEach((value, index) => {
             const diceElement = document.createElement('div');
             diceElement.classList.add('dice');
-            diceElement.textContent = diceValue;
-            diceContainer.appendChild(diceElement);
+            diceElement.textContent = value;
+            diceElement.addEventListener('click', () => this.toggleDiceSelection(index));
+            this.diceContainer.appendChild(diceElement);
+        });
+    }
+
+    toggleDiceSelection(index) {
+        const diceElement = this.diceContainer.children[index];
+        diceElement.classList.toggle('selected');
+        
+        if (diceElement.classList.contains('selected')) {
+            this.selectedDices.push(index);
+        } else {
+            this.selectedDices = this.selectedDices.filter(i => i !== index);
         }
-
-        setTimeout(() => {
-            const dice = document.querySelectorAll('.dice');
-            dice.forEach(die => {
-                die.classList.add('roll');
-            });
-
-            setTimeout(() => {
-                calculateScore(diceResults);
-                playAgainButton.style.display = 'inline-block';
-            }, 2000);
-        }, 200);
     }
 
-    function rollDie() {
-        const randomNumber = Math.random();
-        if (randomNumber < 0.15) return 5;     // Adjusted probability for rolling a 5 to 15%
-        else return Math.floor(Math.random() * 6) + 1;  // Normal dice roll
+    selectDices() {
+        this.selectButton.style.display = 'none';
+        this.rerollButton.style.display = 'block';
     }
 
-    function calculateScore(diceResults) {
-        let numberOfFives = 0;
+    rerollUnselectedDices() {
+        this.dices = this.dices.map((value, index) => 
+            this.selectedDices.includes(index) ? value : Math.floor(Math.random() * 6) + 1
+        );
+        this.renderDices();
+        this.calculateResults();
+        this.rerollButton.style.display = 'none';
+        this.playAgainButton.style.display = 'block';
+    }
 
-        diceResults.forEach(diceValue => {
-            if (diceValue === 5) {
-                numberOfFives++;
-            }
+    calculateResults() {
+        const fiveCount = this.dices.filter(d => d === 5).length;
+        const frequencies = this.frequencyTds.map(td => parseInt(td.textContent));
+        frequencies[fiveCount]++;
+        
+        this.frequencyTds.forEach((td, i) => {
+            td.textContent = frequencies[i];
         });
 
-        updateScoreTable(numberOfFives);
-        const pointsWon = calculatePoints(numberOfFives);
-        playerPoints += pointsWon;
-        pointsDisplay.textContent = playerPoints;
+        const prizeMultipliers = [0, 1, 2, 3, 4, 5, 6, 10];
+        const prize = this.gameCost * prizeMultipliers[fiveCount];
+        this.points += prize;
+        this.pointsDisplay.textContent = this.points;
 
-        if (pointsWon >= 0) {
-            result.textContent = `You rolled ${numberOfFives} fives! Points won: ${pointsWon}`;
-        } else {
-            result.textContent = `You rolled ${numberOfFives} fives! Points lost: ${-pointsWon}`;
-        }
+        this.resultDisplay.textContent = 
+            `You rolled ${fiveCount} five(s). Prize: ${prize} points!`;
     }
 
-    function updateScoreTable(numberOfFives) {
-        const row = scoreTable.rows[numberOfFives];
-        const currentFrequency = parseInt(row.cells[1].textContent);
-        row.cells[1].textContent = currentFrequency + 1;
+    resetGame() {
+        this.selectedDices = [];
+        this.diceContainer.innerHTML = '';
+        this.resultDisplay.textContent = '';
+        this.rollButton.style.display = 'block';
+        this.selectButton.style.display = 'none';
+        this.rerollButton.style.display = 'none';
+        this.playAgainButton.style.display = 'none';
     }
+}
 
-    function calculatePoints(numberOfFives) {
-        switch (numberOfFives) {
-            case 0:
-                return -25; // Adjusted negative points for zero fives
-            case 1:
-                return 10; // Adjusted positive points for one five
-            case 2:
-                return 0; // No change for two fives
-            case 3:
-                return -5; // Adjusted negative points for three fives
-            case 4:
-                return 50; // Adjusted positive points for four fives
-            case 5:
-                return 250; // Adjusted positive points for five fives
-            case 6:
-                return 500; // Adjusted positive points for six fives
-            case 7:
-                return 5000; // Adjusted very high positive points for seven fives
-            default:
-                return 0;
-        }
-    }
+document.addEventListener('DOMContentLoaded', () => {
+    new DiceGame();
 });
